@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description"
+        content="Learn how to control Raspberry Pi GPIO using Python and an HTTP web server. Tutorial by David Razmadze." />
+    <meta name="author" content="David Razmadze" />
+    <meta property="og:title" content="Raspberry Pi GPIO HTTP Tutorial - David Razmadze" />
+    <meta property="og:description"
+        content="Control Raspberry Pi GPIO pins with Python using a simple HTTP web server. Full source code and YouTube tutorial by David Razmadze." />
+    <title>Raspberry Pi GPIO HTTP Tutorial - David Razmadze</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+        }
+        main {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        pre {
+            background-color: #fffbcc;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <h1>Control Raspberry Pi GPIO via HTTP Web Server</h1>
+        <h2>Created by David Razmadze</h2>
+
+        <p>
+            This tutorial uses Python’s built-in <code>http.server</code> module and the
+            <code>RPi.GPIO</code> library to handle HTTP requests and toggle GPIO pins. It’s a great starting point
+            for simple IoT or automation projects.
+        </p>
+
+        <p>
+            View the full source code on
+            <a target="_blank" href="https://github.com/davidrazmadzeExtra/RaspberryPi_HTTP_LED">GitHub</a>.
+        </p>
+
+        <iframe width="560" height="315" src="https://www.youtube.com/embed/owgRkU_-4lw"
+            title="Raspberry Pi HTTP LED Tutorial" frameborder="0" allowfullscreen loading="lazy"></iframe>
+
+        <h2>HTTP Web Server Code</h2>
+        <p>
+            This code creates an HTTP web server that can control the LED through a web interface:
+        </p>
+
+        <button
+            onclick="navigator.clipboard.writeText(document.getElementById('code-block-http').textContent.trim()); this.textContent='Copied!'; setTimeout(() => this.textContent='Copy Code', 2000);">Copy
+            Code</button>
+
+        <pre><code id="code-block-http">#!/usr/bin/env python3
+
+import RPi.GPIO as GPIO
+import os
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+host_name = '10.0.0.184'  # IP Address of Raspberry Pi
+host_port = 8000
+
+
+def setupGPIO():
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
+
+    GPIO.setup(18, GPIO.OUT)
+
+
+def getTemperature():
+    temp = os.popen("/opt/vc/bin/vcgencmd measure_temp").read()
+    return temp
+
+
+class MyServer(BaseHTTPRequestHandler):
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+
+    def _redirect(self, path):
+        self.send_response(303)
+        self.send_header('Content-type', 'text/html')
+        self.send_header('Location', path)
+        self.end_headers()
+
+    def do_GET(self):
+        html = '''
+&lt;html&gt;
+&lt;body style="width:960px; margin: 20px auto;"&gt;
+&lt;h1&gt;Welcome to my Raspberry Pi&lt;/h1&gt;
+&lt;p&gt;Current GPU temperature is {}&lt;/p&gt;
+&lt;form action="/" method="POST"&gt;
+    Turn LED :
+    &lt;input type="submit" name="submit" value="On"&gt;
+    &lt;input type="submit" name="submit" value="Off"&gt;
+&lt;/form&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+        '''
+        temp = getTemperature()
+        self.do_HEAD()
+        self.wfile.write(html.format(temp[5:]).encode("utf-8"))
+
+    def do_POST(self):
+
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length).decode("utf-8")
+        post_data = post_data.split("=")[1]
+
+        setupGPIO()
+
+        if post_data == 'On':
+            GPIO.output(18, GPIO.HIGH)
+        else:
+            GPIO.output(18, GPIO.LOW)
+
+        print("LED is {}".format(post_data))
+        self._redirect('/')  # Redirect back to the root url
+
+
+# # # # # Main # # # # #
+
+if __name__ == '__main__':
+    http_server = HTTPServer((host_name, host_port), MyServer)
+    print("Server Starts - %s:%s" % (host_name, host_port))
+
+    try:
+        http_server.serve_forever()
+    except KeyboardInterrupt:
+        http_server.server_close()
+</code></pre>
+
+        <h2>LED Control Code</h2>
+        <p>
+            This code provides a simple command-line interface to control the LED and display the temperature:
+        </p>
+
+        <button
+            onclick="navigator.clipboard.writeText(document.getElementById('code-block-led').textContent.trim()); this.textContent='Copied!'; setTimeout(() => this.textContent='Copy Code', 2000);">Copy
+            Code</button>
+
+        <pre><code id="code-block-led">#!/usr/bin/env python3
+
+import RPi.GPIO as GPIO
+import os
+
+
+def setupGPIO():
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
+
+    GPIO.setup(18, GPIO.OUT)
+
+
+def printTemperature():
+    temp = os.popen("/opt/vc/bin/vcgencmd measure_temp").read()
+    print("GPU temperature is {}".format(temp[5:]))
+
+
+def controlLED():
+    try:
+        while True:
+            user_input = input(
+                "Turn LED On or Off with 1 or 0 (Ctrl-C to exit): ")
+            if user_input is "1":
+                GPIO.output(18, GPIO.HIGH)
+                print("LED is on")
+            elif user_input is "0":
+                GPIO.output(18, GPIO.LOW)
+                print("LED is off")
+    except KeyboardInterrupt:
+        GPIO.cleanup()
+        print("")
+
+
+setupGPIO()
+printTemperature()
+
+controlLED()
+</code></pre>
+    </main>
+
+    <hr />
+
+    <footer>
+        <center>
+            <p>
+                <a href="/index.html">← Back to Home</a>
+            </p>
+        </center>
+    </footer>
+</body>
+
+</html>
+
+
+
